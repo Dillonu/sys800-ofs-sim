@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+<!--<form action="/runsim" method="post">-->
+Federate1: <input id="f1" type="number" name="federateIds[]" value="0" required><br>
+Federate2: <input id="f2" type="number" name="federateIds[]" value="0" required><br>
+Count: <input id="c" type="number" name="count" value="100"><br>
+<input type="button" value="Submit" onclick="submit()"><br>
+<pre id="r" style="width:100%">Results displayed here.</span>
+<!--</form>-->
+
+<script>
+function submit() {
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", "/runsim", true);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.onreadystatechange = function () {
+        if (this.readyState != 4) return;
+
+        if (this.status == 200) {
+            var data = JSON.parse(this.responseText);
+
+            document.getElementById("r").innerText = JSON.stringify(data, null, '\t');
+            // we get the returned data
+        }
+
+        // end of state change: it can be after some time (async)
+    };
+    xhr.send(JSON.stringify({
+        federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)],
+        count: Number(document.getElementById("c").value)
+    }));
+}
+</script>
+</body>
+</html>
