@@ -1,21 +1,22 @@
-const spawn = require("child_process").spawn;
-const MongoClient = require("mongodb").MongoClient;
 const async = require('asyncawait/async');
 const await = require('asyncawait/await');
-const express = require('express');
 const bodyParser = require('body-parser');
-const url = 'mongodb://localhost:27017/orbitalFederates';
+const express = require('express');
+const MongoClient = require('mongodb').MongoClient;
+const path = require('path');
+const spawn = require('child_process').spawn;
+const url = 'mongodb://155.246.39.17:27017/orbitalFederates';
 const build = {
-    GROUND: function buildGround(ground, playerId) {
-        return `${playerId}.GroundSta@SUR${playerId},${ground.components.join(",")}`;
+    GROUND: function buildGround(ground, playerId, basePos) {
+        return `${playerId}.GroundSta@SUR${basePos},${ground.components.join(',')}`;
     },
-    SAT: function (sat, playerId, randomPosition) {
+    SAT: function (sat, playerId, satPos) {
         if (sat.components <= 2) {
-            return `${playerId}.SmallSat@MEO${randomPosition},${sat.components.join(",")}`;
+            return `${playerId}.SmallSat@MEO${satPos},${sat.components.join(',')}`;
         } else if (sat.components <= 4) {
-            return `${playerId}.MediumSat@MEO${randomPosition},${sat.components.join(",")}`;
+            return `${playerId}.MediumSat@MEO${satPos},${sat.components.join(',')}`;
         } else {
-            return `${playerId}.LargeSat@MEO${randomPosition},${sat.components.join(",")}`;
+            return `${playerId}.LargeSat@MEO${satPos},${sat.components.join(',')}`;
         }
     }
 };
@@ -28,14 +29,15 @@ MongoClient.connect(url, async(function (err, db) {
     app.use(bodyParser.json());
     app.use(express.static('public'));
 
-    const runOfs = async(function (args) {
+    const runOfs = async(function (args, config) {
         return new Promise((resolve, reject) => {
-            let process = spawn('python', args);
+            let process = spawn('python', args, { cwd: path.join(__dirname, 'ofspy', 'bin') });
             let lines = [];
+            let result = '';
 
             process.stdout.on('data', function (data) {
                 // TODO: Make sure to store seed, locations, algorithms, and design.
-                lines.push(data.toString());
+                result += data.toString();
             });
 
             process.stderr.on('data', (data) => {
@@ -43,9 +45,11 @@ MongoClient.connect(url, async(function (err, db) {
             });
 
             process.on('close', (code) => {
-                //console.log("Connection closed");
-                console.log(lines);
-                resolve(lines);
+                //console.log('Connection closed');
+                resolve({
+                    results: result,
+                    config: config
+                });
             });
         });
     });
@@ -53,10 +57,16 @@ MongoClient.connect(url, async(function (err, db) {
     const runSim = async(function (federateIds, count) {
         let designCollection = db.collection('designs');
         let federateCollection = db.collection('federates');
+        let resultsCollection = db.collection('results');
         let sims = [];
         // Caches:
         let federatesCache = {};
         let designsCache = {};
+
+        function getBasePos(playerId) {
+            // Evenly spaces the players:
+            return Math.floor((playerId - 1) / federateIds.length * 6) + 1;
+        }
 
         const fetchFederate = async(function (federateId) {
             if (!federatesCache[federateId]) federatesCache[federateId] = await(federateCollection.findOne({ federateId: federateId }));
@@ -72,43 +82,116 @@ MongoClient.connect(url, async(function (err, db) {
 
         for (let seed = 0; seed < count; seed += 1) {
             let rand = require('random-seed').create(seed);
-            let args = [".ofspy/bin/ofs.py"];
+            let args = [path.join(__dirname, 'ofspy', 'bin', 'ofs.py')];
             let playerId = 0;
 
             // Build sats:
             for (const federateId of federateIds) {
                 playerId += 1;
                 const federate = await(fetchFederate(federateId));
+                let designNum = 0;
 
                 for (const designId of federate.designIds) {
                     const design = await(fetchDesign(designId));
 
-                    args.push(build[design.objectType](design, playerId, rand(6) + 1));
+                    if (design.objectType === 'GROUND') {
+                        args.push(build[design.objectType](design, playerId, getBasePos(playerId)));
+                    } else {
+                        args.push(build[design.objectType](design, playerId, getBasePos(playerId) + designNum));
+                        designNum += 1;
+                    }
                 }
             }
 
             // Run sim:
             let runArgs = args.concat([
-                "-d", "24",
-                "-s", `${seed}`,
-                "-o", "d6,a,1",
-                "-f", "n"
+                '-d', '24',
+                '-s', `${seed}`,
+                '-o', 'd6,a,1',
+                '-f', 'n'
             ]);
 
-            //console.log(args);
-            sims.push(runOfs(runArgs));
+            let config = {
+                federateIds: federateIds,
+                turns: 24,
+                seed: seed,
+                o: 'd6,a,1',
+                f: 'n'
+            };
+
+            if (!await(resultsCollection.findOne({
+                'config.federateIds': config.federateIds,
+                'config.turns': config.turns,
+                'config.seed': config.seed,
+                'config.o': config.o,
+                'config.f': config.f
+            }))) {
+                //console.log(args);
+                sims.push(runOfs(runArgs, config));
+            }
         }
 
-        return await(sims); // Wait for them to complete before returning
+        // Wait for them to complete before returning
+        let results = await(sims).map((result, seed) => {
+            result.config.startCash = [];
+
+            // Parse results:
+            return result.results.match(/[^\r\n]+/gi).reduce((res, fed) => {
+                cash = fed.split(':');
+
+                res.config.startCash.push(parseFloat(cash[0]));
+                res.results.endCash.push(parseFloat(cash[1]));
+
+                return res;
+            }, {
+                config: result.config,
+                results: {
+                    endCash: []
+                }
+            });
+        });
+
+        if (results.length > 0) {
+            await(resultsCollection.insert(results));
+            console.log("new", results);
+        }
+
+        return await(resultsCollection.find({
+            'config.federateIds': federateIds,
+            'config.seed': { $gte: 0, $lt: count }
+        }).toArray());
     });
 
     app.post('/runsim', async(function (req, res) {
-        const federateIds = req.body.federateIds || [];
-        const count = req.body.count || 100;
+        res.json(await(runSim(req.body.federateIds, req.body.count)));
+    }));
 
-        console.log(req.body);
+    app.post('/mean', async(function (req, res) {
+        let resultsCollection = db.collection('results');
+        let match = {};
 
-        res.json(await(runSim(federateIds, count)));
+        for (const field of Object.keys(req.body.config)) {
+            match['config.' + field] = req.body.config[field];
+        }
+
+        let results = await(resultsCollection.find(match).toArray());
+
+        res.json(results.reduce((result, res, index, array) => {
+            if (result.federateIds == null) {
+                result.federateIds = res.config.federateIds;
+                result.endCash = new Array(result.federateIds.length);
+
+                for (let i = 0; i < res.config.federateIds.length; i += 1) {
+                    result.endCash[i] = res.results.endCash[i] / array.length;
+                }
+            } else {
+                for (let i = 0; i < res.config.federateIds.length; i += 1) {
+                    result.endCash[i] += res.results.endCash[i] / array.length;
+                }
+            }
+
+            return result;
+        }, {}));
     }));
 
     app.listen(3000, function () {
