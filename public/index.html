@@ -80,7 +80,10 @@ F Alg: <input id="f" type="text" name="f" value="n"><br>
     function submitMean() {
         submit("/mean", {
             config: {
-                federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)]
+                federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)],
+                turns: Number(document.getElementById("t").value),
+                o: document.getElementById("o").value,
+                f: document.getElementById("f").value
             }
         });
     }
