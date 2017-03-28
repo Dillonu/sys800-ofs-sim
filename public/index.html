@@ -6,6 +6,9 @@
 Federate1: <input id="f1" type="number" name="federateIds[]" value="0" required><br>
 Federate2: <input id="f2" type="number" name="federateIds[]" value="0" required><br>
 Count: <input id="c" type="number" name="count" value="100"><br>
+Turns: <input id="t" type="number" name="turns" value="24"><br>
+O Alg: <input id="o" type="text" name="o" value="d6,a,1"><br>
+F Alg: <input id="f" type="text" name="f" value="n"><br>
 <input type="button" value="Submit Sim" onclick="submitSim()"><br>
 <input type="button" value="Run All Sims" onclick="runAllSims(100)"><br>
 <input type="button" value="Run Test Sim" onclick="submitTestSim()"><br>
@@ -37,16 +40,41 @@ Count: <input id="c" type="number" name="count" value="100"><br>
     function submitSim() {
         submit("/runsim", {
             federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)],
-            count: Number(document.getElementById("c").value)
+            count: Number(document.getElementById("c").value),
+            turns: Number(document.getElementById("t").value),
+            o: document.getElementById("o").value,
+            f: document.getElementById("f").value
         });
     }
 
     function submitTestSim() {
-        submit("/runsim", {
-            federateIds: [0,0],
-            loc: [[3,0],[2,2]],
-            count: 1000
-        });
+        const count = Number(document.getElementById("c").value);
+        const turns = Number(document.getElementById("t").value);
+        const o = document.getElementById("o").value;
+        const f = document.getElementById("f").value;
+
+        function upper() {
+            let t = 0;
+
+            function _upper() {
+                if (t < turns) {
+                    submit("/runsim", {
+                        federateIds: [0,0],
+                        loc: [[3,0],[2,2]],
+                        count: count,
+                        turns: t,
+                        o: o,
+                        f: f
+                    }, _upper);
+
+                    t += 1;
+                }
+            }
+
+            _upper();
+        }
+
+        upper();
     }
 
     function submitMean() {
@@ -59,6 +87,9 @@ Count: <input id="c" type="number" name="count" value="100"><br>
 
     function runAllSims(ids) {
         const count = Number(document.getElementById("c").value);
+        const turns = Number(document.getElementById("t").value);
+        const o = document.getElementById("o").value;
+        const f = document.getElementById("f").value;
 
         function lower(i, callback) {
             let j = i;
@@ -67,7 +98,10 @@ Count: <input id="c" type="number" name="count" value="100"><br>
                 if (j < ids) {
                     submit("/runsim", {
                         federateIds: [i, j],
-                        count: count
+                        count: count,
+                        turns: turns,
+                        o: o,
+                        f: f
                     }, _lower);
 
                     j += 1;

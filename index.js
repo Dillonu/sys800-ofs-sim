@@ -8,15 +8,15 @@ const spawn = require('child_process').spawn;
 const url = 'mongodb://155.246.39.17:27017/orbitalFederates';
 const build = {
     GROUND: function buildGround(ground, playerId, basePos) {
-        return `${playerId}.GroundSta@SUR${basePos},${ground.components.join(',')}`;
+        return `${playerId + 1}.GroundSta@SUR${basePos},${ground.components.join(',')}`;
     },
     SAT: function (sat, playerId, satPos) {
         if (sat.components <= 2) {
-            return `${playerId}.SmallSat@MEO${satPos},${sat.components.join(',')}`;
+            return `${playerId + 1}.SmallSat@MEO${satPos},${sat.components.join(',')}`;
         } else if (sat.components <= 4) {
-            return `${playerId}.MediumSat@MEO${satPos},${sat.components.join(',')}`;
+            return `${playerId + 1}.MediumSat@MEO${satPos},${sat.components.join(',')}`;
         } else {
-            return `${playerId}.LargeSat@MEO${satPos},${sat.components.join(',')}`;
+            return `${playerId + 1}.LargeSat@MEO${satPos},${sat.components.join(',')}`;
         }
     }
 };
@@ -77,7 +77,7 @@ MongoClient.connect(url, async(function (err, db) {
         });
     });
 
-    const runSim = async(function (federateIds, count, loc) {
+    const runSim = async(function (federateIds, count, loc, turns = 24, oAlg = 'd6,a,1', fAlg = 'n') {
         let designCollection = db.collection('designs');
         let federateCollection = db.collection('federates');
         let resultsCollection = db.collection('results');
@@ -88,7 +88,7 @@ MongoClient.connect(url, async(function (err, db) {
 
         function getBasePos(playerId) {
             // Evenly spaces the players:
-            return Math.floor((playerId - 1) / federateIds.length * 6) + 1;
+            return Math.floor(playerId / federateIds.length * 6) + 1;
         }
 
         const fetchFederate = async(function (federateId) {
@@ -109,7 +109,6 @@ MongoClient.connect(url, async(function (err, db) {
         let designArgs = [];
         if (loc == null) loc = [];
         for (const federateId of federateIds) {
-            playerId += 1;
             const federate = await(fetchFederate(federateId));
             let designNum = 0;
             let designIndex = 0;
@@ -130,15 +129,16 @@ MongoClient.connect(url, async(function (err, db) {
                 }
                 designIndex += 1;
             }
+            playerId += 1;
         }
 
         let matchConfig = {
             'config.federateIds': federateIds,
             'config.loc': loc,
-            'config.turns': 24,
+            'config.turns': turns,
             'config.seed': { $gte: 0, $lt: count },
-            'config.o': 'd6,a,1',
-            'config.f': 'n'
+            'config.o': oAlg,
+            'config.f': fAlg
         };
 
         let seeds = await(resultsCollection.find(matchConfig).project({ _id: 0, "config.seed": 1 }).toArray()).reduce((o, s) => {
@@ -152,19 +152,19 @@ MongoClient.connect(url, async(function (err, db) {
 
             // Run sim:
             let runArgs = args.concat([
-                '-d', '24',
+                '-d', `${turns}`,
                 '-s', `${seed}`,
-                '-o', 'd6,a,1',
-                '-f', 'n'
+                '-o', `${oAlg}`,
+                '-f', `${fAlg}`
             ]);
 
             let config = {
                 federateIds: federateIds,
                 loc: loc,
-                turns: 24,
+                turns: turns,
                 seed: seed,
-                o: 'd6,a,1',
-                f: 'n'
+                o: oAlg,
+                f: fAlg
             };
 
             //console.log(args);
@@ -197,14 +197,25 @@ MongoClient.connect(url, async(function (err, db) {
         }
 
         console.log(federateIds);
-        return await(resultsCollection.find({
-            'config.federateIds': federateIds,
-            'config.seed': { $gte: 0, $lt: count }
-        }).toArray());
+        return await(resultsCollection.find(matchConfig).toArray());
     });
 
     app.post('/runsim', async(function (req, res) {
-        res.json(await(runSim(req.body.federateIds, req.body.count, req.body.loc)));
+        res.json(await(runSim(req.body.federateIds, req.body.count, req.body.loc, req.body.turns, req.body.o, req.body.f)));
+    }));
+
+    app.get('/results/clear', async(function (req, res) {
+        let resultsCollection = db.collection('results');
+        resultsCollection.drop();
+        resultsCollection.createIndex({ "config.federateIds": 1 });
+        resultsCollection.createIndex({ "config.loc": 1 });
+        resultsCollection.createIndex({ "config.o": 1 });
+        resultsCollection.createIndex({ "config.f": 1 });
+        resultsCollection.createIndex({ "config.turns": 1 });
+        resultsCollection.createIndex({ "config.seed": 1 });
+        resultsCollection.createIndex({ "results.endCash": 1 });
+
+        res.json("\"success\"");
     }));
 
     app.post('/mean', async(function (req, res) {
