@@ -80,7 +80,19 @@ MongoClient.connect(url, async(function (err, db) {
             return designsCache[designId];
         });
 
+        let seeds = await(resultsCollection.find({
+            'config.federateIds': federateIds,
+            'config.turns': 24,
+            'config.seed': { $gte: 0, $lt: count },
+            'config.o': 'd6,a,1',
+            'config.f': 'n'
+        }).project({ _id: 0, "config.seed": 1 }).toArray()).reduce((o, s) => {
+            o[s.config.seed] = true; return o;
+        }, {});
+
         for (let seed = 0; seed < count; seed += 1) {
+            if (seeds[seed]) continue; // If all done, skip
+
             let rand = require('random-seed').create(seed);
             let args = [path.join(__dirname, 'ofspy', 'bin', 'ofs.py')];
             let playerId = 0;
@@ -119,16 +131,8 @@ MongoClient.connect(url, async(function (err, db) {
                 f: 'n'
             };
 
-            if (!await(resultsCollection.findOne({
-                'config.federateIds': config.federateIds,
-                'config.turns': config.turns,
-                'config.seed': config.seed,
-                'config.o': config.o,
-                'config.f': config.f
-            }))) {
-                //console.log(args);
-                sims.push(runOfs(runArgs, config));
-            }
+            //console.log(args);
+            sims.push(runOfs(runArgs, config));
         }
 
         // Wait for them to complete before returning
