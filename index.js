@@ -243,7 +243,7 @@ MongoClient.connect(url, async(function (err, db) {
             }
 
             return result;
-        }, {}));
+        }, { seeds: results.length }));
     }));
 
     app.listen(3000, function () {
