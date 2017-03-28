@@ -215,7 +215,7 @@ MongoClient.connect(url, async(function (err, db) {
             match['config.' + field] = req.body.config[field];
         }
 
-        let results = await(resultsCollection.find(match).toArray());
+        let results = await(resultsCollection.find(match).project({ _id: 0, "config.federateIds": 1, "results.endCash": 1 }).toArray());
 
         res.json(results.reduce((result, res, index, array) => {
             if (result.federateIds == null) {
