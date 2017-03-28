@@ -25,36 +25,59 @@ MongoClient.connect(url, async(function (err, db) {
     if (err) return console.error('Unable to connect to the mongoDB server. Error:', err);
     console.log('Connection established to', url);
     let app = express();
+    let curProcessCount = 0;
+    let maxProcessCount = 20;
+    let waitingProcess = [];
+
+    function processRun(callback) {
+        if (curProcessCount >= maxProcessCount) return waitingProcess.push(callback);
+
+        curProcessCount += 1;
+        callback();
+    }
+
+    function processClose() {
+        curProcessCount -= 1;
+
+        while (curProcessCount < maxProcessCount && waitingProcess.length > 0) {
+            curProcessCount += 1;
+            (waitingProcess.shift())();
+        }
+    }
 
     app.use(bodyParser.json());
     app.use(express.static('public'));
 
     const runOfs = async(function (args, config) {
         return new Promise((resolve, reject) => {
-            let process = spawn('python', args, { cwd: path.join(__dirname, 'ofspy', 'bin') });
-            let lines = [];
-            let result = '';
+            processRun(() => {
+                let process = spawn('python', args, { cwd: path.join(__dirname, 'ofspy', 'bin') });
+                let lines = [];
+                let result = '';
 
-            process.stdout.on('data', function (data) {
-                // TODO: Make sure to store seed, locations, algorithms, and design.
-                result += data.toString();
-            });
+                process.stdout.on('data', function (data) {
+                    // TODO: Make sure to store seed, locations, algorithms, and design.
+                    result += data.toString();
+                });
 
-            process.stderr.on('data', (data) => {
-                console.log(`stderr: ${data}`);
-            });
+                process.stderr.on('data', (data) => {
+                    console.log(`stderr: ${data}`);
+                });
 
-            process.on('close', (code) => {
-                //console.log('Connection closed');
-                resolve({
-                    results: result,
-                    config: config
+                process.on('close', (code) => {
+                    //console.log('Connection closed');
+                    resolve({
+                        results: result,
+                        config: config
+                    });
+
+                    processClose();
                 });
             });
         });
     });
 
-    const runSim = async(function (federateIds, count) {
+    const runSim = async(function (federateIds, count, loc) {
         let designCollection = db.collection('designs');
         let federateCollection = db.collection('federates');
         let resultsCollection = db.collection('results');
@@ -80,40 +103,52 @@ MongoClient.connect(url, async(function (err, db) {
             return designsCache[designId];
         });
 
-        let seeds = await(resultsCollection.find({
+        // TODO: Generate locs before running seeds
+        // Build sats:
+        let playerId = 0;
+        let designArgs = [];
+        if (loc == null) loc = [];
+        for (const federateId of federateIds) {
+            playerId += 1;
+            const federate = await(fetchFederate(federateId));
+            let designNum = 0;
+            let designIndex = 0;
+            if (loc[playerId] == null) loc[playerId] = [];
+
+            for (const designId of federate.designIds) {
+                const design = await(fetchDesign(designId));
+
+                if (design.objectType === 'GROUND') {
+                    if (loc[playerId][designIndex] == null) loc[playerId][designIndex] = getBasePos(playerId);
+
+                    designArgs.push(build[design.objectType](design, playerId, loc[playerId][designIndex]));
+                } else {
+                    if (loc[playerId][designIndex] == null) loc[playerId][designIndex] = getBasePos(playerId) + designNum;
+
+                    designArgs.push(build[design.objectType](design, playerId, loc[playerId][designIndex]));
+                    designNum += 1;
+                }
+                designIndex += 1;
+            }
+        }
+
+        let matchConfig = {
             'config.federateIds': federateIds,
+            'config.loc': loc,
             'config.turns': 24,
             'config.seed': { $gte: 0, $lt: count },
             'config.o': 'd6,a,1',
             'config.f': 'n'
-        }).project({ _id: 0, "config.seed": 1 }).toArray()).reduce((o, s) => {
+        };
+
+        let seeds = await(resultsCollection.find(matchConfig).project({ _id: 0, "config.seed": 1 }).toArray()).reduce((o, s) => {
             o[s.config.seed] = true; return o;
         }, {});
 
         for (let seed = 0; seed < count; seed += 1) {
             if (seeds[seed]) continue; // If all done, skip
 
-            let rand = require('random-seed').create(seed);
-            let args = [path.join(__dirname, 'ofspy', 'bin', 'ofs.py')];
-            let playerId = 0;
-
-            // Build sats:
-            for (const federateId of federateIds) {
-                playerId += 1;
-                const federate = await(fetchFederate(federateId));
-                let designNum = 0;
-
-                for (const designId of federate.designIds) {
-                    const design = await(fetchDesign(designId));
-
-                    if (design.objectType === 'GROUND') {
-                        args.push(build[design.objectType](design, playerId, getBasePos(playerId)));
-                    } else {
-                        args.push(build[design.objectType](design, playerId, getBasePos(playerId) + designNum));
-                        designNum += 1;
-                    }
-                }
-            }
+            let args = [path.join(__dirname, 'ofspy', 'bin', 'ofs.py'), ...designArgs];
 
             // Run sim:
             let runArgs = args.concat([
@@ -125,6 +160,7 @@ MongoClient.connect(url, async(function (err, db) {
 
             let config = {
                 federateIds: federateIds,
+                loc: loc,
                 turns: 24,
                 seed: seed,
                 o: 'd6,a,1',
@@ -168,7 +204,7 @@ MongoClient.connect(url, async(function (err, db) {
     });
 
     app.post('/runsim', async(function (req, res) {
-        res.json(await(runSim(req.body.federateIds, req.body.count)));
+        res.json(await(runSim(req.body.federateIds, req.body.count, req.body.loc)));
     }));
 
     app.post('/mean', async(function (req, res) {

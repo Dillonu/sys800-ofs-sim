@@ -8,6 +8,7 @@ Federate2: <input id="f2" type="number" name="federateIds[]" value="0" required>
 Count: <input id="c" type="number" name="count" value="100"><br>
 <input type="button" value="Submit Sim" onclick="submitSim()"><br>
 <input type="button" value="Run All Sims" onclick="runAllSims(100)"><br>
+<input type="button" value="Run Test Sim" onclick="submitTestSim()"><br>
 <input type="button" value="Submit Mean" onclick="submitMean()"><br>
 <pre id="r" style="width:100%">Results displayed here.</pre>
 <!--</form>-->
@@ -37,6 +38,14 @@ Count: <input id="c" type="number" name="count" value="100"><br>
         submit("/runsim", {
             federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)],
             count: Number(document.getElementById("c").value)
+        });
+    }
+
+    function submitTestSim() {
+        submit("/runsim", {
+            federateIds: [0,0],
+            loc: [[3,0],[2,2]],
+            count: 1000
         });
     }
 
