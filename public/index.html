@@ -7,54 +7,97 @@ Federate1: <input id="f1" type="number" name="federateIds[]" value="0" required>
 Federate2: <input id="f2" type="number" name="federateIds[]" value="0" required><br>
 Count: <input id="c" type="number" name="count" value="100"><br>
 <input type="button" value="Submit Sim" onclick="submitSim()"><br>
+<input type="button" value="Run All Sims" onclick="runAllSims(50)"><br>
 <input type="button" value="Submit Mean" onclick="submitMean()"><br>
 <pre id="r" style="width:100%">Results displayed here.</pre>
 <!--</form>-->
 
 <script>
-function submitSim() {
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "/runsim", true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.onreadystatechange = function () {
-        if (this.readyState != 4) return;
+    function submit(url, msg, callback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("POST", url, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.onreadystatechange = function () {
+            if (this.readyState != 4) return;
 
-        if (this.status == 200) {
-            var data = JSON.parse(this.responseText);
+            if (this.status == 200) {
+                var data = JSON.parse(this.responseText);
 
-            document.getElementById("r").innerText = JSON.stringify(data, null, '\t');
-            // we get the returned data
+                document.getElementById("r").innerText = JSON.stringify(data, null, '\t');
+                if (callback) callback();
+                // we get the returned data
+            }
+
+            // end of state change: it can be after some time (async)
+        };
+        xhr.send(JSON.stringify(msg));
+    }
+
+    function submitSim() {
+        submit("/runsim", {
+            federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)],
+            count: Number(document.getElementById("c").value)
+        });
+    }
+
+    function submitMean() {
+        submit("/mean", {
+            config: {
+                federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)]
+            }
+        });
+    }
+
+    function runAllSims(ids) {
+        const count = Number(document.getElementById("c").value);
+
+        function lower(i, callback) {
+            let j = i;
+
+            function _lower() {
+                if (j < ids) {
+                    submit("/runsim", {
+                        federateIds: [i, j],
+                        count: count
+                    }, _lower);
+
+                    j += 1;
+                } else {
+                    callback();
+                }
+            }
+
+            _lower();
         }
 
-        // end of state change: it can be after some time (async)
-    };
-    xhr.send(JSON.stringify({
-        federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)],
-        count: Number(document.getElementById("c").value)
-    }));
-}
-function submitMean() {
-    var xhr = new XMLHttpRequest();
-    xhr.open("POST", "/mean", true);
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.onreadystatechange = function () {
-        if (this.readyState != 4) return;
+        function upper(callback) {
+            let i = 0;
 
-        if (this.status == 200) {
-            var data = JSON.parse(this.responseText);
+            function _upper() {
+                if (i < ids) {
+                    lower(i, _upper);
 
-            document.getElementById("r").innerText = JSON.stringify(data, null, '\t');
-            // we get the returned data
+                    i += 1;
+                } else {
+                    callback();
+                }
+            }
+
+            _upper();
         }
 
-        // end of state change: it can be after some time (async)
-    };
-    xhr.send(JSON.stringify({
-        config: {
-            federateIds: [Number(document.getElementById("f1").value), Number(document.getElementById("f2").value)]
-        }
-    }));
-}
+        // Disable all buttons:
+        document.querySelectorAll("input").forEach((el) => {
+            el.disabled = true;
+        });
+        // Run query:
+        upper(function () {
+            // Enable all buttons:
+            document.querySelectorAll("input").forEach((el) => {
+                el.disabled = false;
+            });
+        });
+    }
 </script>
 </body>
 </html>

@@ -153,9 +153,10 @@ MongoClient.connect(url, async(function (err, db) {
 
         if (results.length > 0) {
             await(resultsCollection.insert(results));
-            console.log("new", results);
+            //console.log("new", results);
         }
 
+        console.log(federateIds);
         return await(resultsCollection.find({
             'config.federateIds': federateIds,
             'config.seed': { $gte: 0, $lt: count }
