@@ -7,14 +7,13 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch Program",
-            "program": "${file}"
-        },
-        {
-            "type": "node",
-            "request": "attach",
-            "name": "Attach to Process",
-            "address": "localhost",
+            "name": "Launch via NPM",
+            "protocol": "inspector",
+            "runtimeExecutable": "npm",
+            "windows": {
+                "runtimeExecutable": "npm.cmd"
+            },
+            "runtimeArgs": ["start"],
             "port": 5858
         }
     ]
