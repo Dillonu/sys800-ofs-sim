@@ -8,7 +8,7 @@ const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017/orbitalFed
 
 MongoClient.connect(MONGO_URL, async(function (err, db) {
     if (err) return console.error('Unable to connect to the mongoDB server. Error:', err);
-    console.log('Connection established to', url);
+    console.log('Connection established to', MONGO_URL);
     let resultsCollection = db.collection('results');
     let app = express();
 

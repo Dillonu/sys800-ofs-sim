@@ -142,7 +142,7 @@ exports.run = async(function (db, config, seed = 0) {
                 resolve(results.match(/[^\r\n]+/gi).reduce((res, fed) => {
                     cash = fed.split(':');
 
-                    res.config.startCash.push(parseFloat(cash[0]));
+                    res.configuration.startCash.push(parseFloat(cash[0]));
                     res.results.endCash.push(parseFloat(cash[1]));
 
                     return res;
