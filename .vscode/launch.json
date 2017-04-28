@@ -7,14 +7,8 @@
         {
             "type": "node",
             "request": "launch",
-            "name": "Launch via NPM",
-            "protocol": "inspector",
-            "runtimeExecutable": "npm",
-            "windows": {
-                "runtimeExecutable": "npm.cmd"
-            },
-            "runtimeArgs": ["start"],
-            "port": 5858
+            "name": "Launch Program",
+            "program": "${workspaceRoot}/index.js"
         }
     ]
 }

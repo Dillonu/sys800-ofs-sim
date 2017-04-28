@@ -15,8 +15,10 @@ const DEFAULT_CONFIG = {
 exports.DEFAULT_CONFIG = DEFAULT_CONFIG;
 const REQUIRED_FIELDS = new Set(['federateIds']);
 exports.REQUIRED_FIELDS = REQUIRED_FIELDS;
-const build = {
-    GROUND: function buildGround(ground, playerId, basePos) {
+
+// Contains all of the functions to convert the JSON input into command-line input for the ofspy simulator:
+const BUILD = {
+    GROUND: function (ground, playerId, basePos) {
         return `${playerId + 1}.GroundSta@SUR${basePos},${ground.components.join(',')}`;
     },
     SAT: function (sat, playerId, satPos) {
@@ -29,33 +31,31 @@ const build = {
         }
     }
 };
-// Caches:
+// Below are the catches. These are used to reduce how many times the same data is requested from the MongoDB server.
 let federatesCache = {};
 let designsCache = {};
-// Manage max processes:
+// Manage max processes, to reduce the number of parallel simulations (to prevent running thousands):
 const PROCESS_COUNT_MAX = 20;
 let curProcessCount = 0;
 let waitingProcess = [];
 
 function processRun(callback) {
+    // Queue process if there is currently too many running:
     if (curProcessCount >= PROCESS_COUNT_MAX) return waitingProcess.push(callback);
 
     curProcessCount += 1;
+    // Run process:
     callback();
 }
 
 function processClose() {
     curProcessCount -= 1;
 
+    // Run processes that are in the queue:
     while (curProcessCount < PROCESS_COUNT_MAX && waitingProcess.length > 0) {
         curProcessCount += 1;
         (waitingProcess.shift())();
     }
-}
-
-function getBasePos(playerId, federateIds) {
-    // Evenly spaces the players:
-    return Math.floor(playerId / federateIds.length * 6) + 1;
 }
 
 exports.run = async(function (db, config, seed = 0) {
@@ -63,12 +63,14 @@ exports.run = async(function (db, config, seed = 0) {
     let federateCollection = db.collection('federates');
 
     const fetchFederate = async(function (federateId) {
+        // Fetch the federate if we don't have it cached already:
         if (!federatesCache[federateId]) federatesCache[federateId] = await(federateCollection.findOne({ federateId: federateId }));
 
         return federatesCache[federateId];
     });
 
     const fetchDesign = async(function (designId) {
+        // Fetch the design if we don't have it cached already:
         if (!designsCache[designId]) designsCache[designId] = await(designCollection.findOne({ designId: designId }));
 
         return designsCache[designId];
@@ -85,30 +87,38 @@ exports.run = async(function (db, config, seed = 0) {
     }
 
     // Build federates:
+    const locationAlgorithm = (config.locations === 'string' ? config.locations : '');
+    let location = 1;
     let playerId = 0;
     let designArgs = [];
-    if (config.locations == null) config.locations = [];
-    for (const federateId of config.federateIds) {
-        const federate = await(fetchFederate(federateId));
-        let designNum = 0;
-        let designIndex = 0;
+    if (!(config.locations instanceof Array)) config.locations = [];
+
+    for (const federate of await(config.federateIds.map(fetchFederate))) {
         if (config.locations[playerId] == null) config.locations[playerId] = [];
+        let federateLocations = config.locations[playerId];
 
-        for (const designId of federate.designIds) {
-            const design = await(fetchDesign(designId));
+        // In symmetrical mode, set the base offsets symmetric to give equal distance between players:
+        if (locationAlgorithm === 'symmetric') location = Math.floor(playerId / federateIds.length * 6) + 1;
 
-            if (design.objectType === 'GROUND') {
-                if (config.locations[playerId][designIndex] == null) config.locations[playerId][designIndex] = getBasePos(playerId, config.federateIds);
+        // Fetch design objects based on ID:
+        let designs = await(federate.designIds.map(fetchDesign));
+        // Sort bases first:
+        designs.sort((a, b) => {
+            return a.objectType === b.objectType ? 0 : (a.objectType === 'GROUND' ? -1 : 1);
+        });
 
-                designArgs.push(build[design.objectType](design, playerId, config.locations[playerId][designIndex]));
-            } else {
-                if (config.locations[playerId][designIndex] == null) config.locations[playerId][designIndex] = getBasePos(playerId, config.federateIds) + designNum;
-
-                designArgs.push(build[design.objectType](design, playerId, config.locations[playerId][designIndex]));
-                designNum += 1;
+        // Iterate through designs:
+        for (const [index, design] of designs.entries()) {
+            if (design.objectType === 'SAT') {
+                location -= 1;
+                if (location <= 0) location = 6;
             }
-            designIndex += 1;
+
+            if (federateLocations[index] == null) federateLocations[index] = location;
+
+            designArgs.push(BUILD[design.objectType](design, playerId, federateLocations[index]));
         }
+
         playerId += 1;
     }
 
@@ -122,11 +132,13 @@ exports.run = async(function (db, config, seed = 0) {
 
     return new Promise((resolve, reject) => {
         processRun(() => {
+            // Spawn process:
             let process = spawn('python', runArgs, { cwd: path.join(__dirname, 'ofspy', 'bin') });
             let lines = [];
             let results = '';
 
             process.stdout.on('data', function (data) {
+                // Store result:
                 results += data.toString();
             });
 
@@ -155,6 +167,7 @@ exports.run = async(function (db, config, seed = 0) {
                     }
                 }));
 
+                // Let the process manager know this process is done:
                 processClose();
             });
         });

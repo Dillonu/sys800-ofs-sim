@@ -135,26 +135,6 @@ MongoClient.connect(url, async(function (err, db) {
         );
 
         res.json(results);
-
-        /*let results = await(resultsCollection.find(matchConfig).project({ _id: 0, "config.federateIds": 1, "results.endCash": 1 }).toArray());
-
-
-        res.json(results.reduce((result, res, index, array) => {
-            if (result.federateIds == null) {
-                result.federateIds = res.config.federateIds;
-                result.endCash = new Array(result.federateIds.length);
-
-                for (let i = 0; i < res.config.federateIds.length; i += 1) {
-                    result.endCash[i] = res.results.endCash[i] / array.length;
-                }
-            } else {
-                for (let i = 0; i < res.config.federateIds.length; i += 1) {
-                    result.endCash[i] += res.results.endCash[i] / array.length;
-                }
-            }
-
-            return result;
-        }, { seeds: results.length }));*/
     }));
 
     app.listen(3000, function () {
