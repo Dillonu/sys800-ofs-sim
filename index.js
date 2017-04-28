@@ -4,9 +4,9 @@ const bodyParser = require('body-parser');
 const express = require('express');
 const MongoClient = require('mongodb').MongoClient;
 const ofspy = require('./ofspy');
-const url = 'mongodb://localhost:27017/orbitalFederates';//'mongodb://155.246.39.17:27017/orbitalFederates';
+const MONGO_URL = process.env.MONGO_URL || 'mongodb://localhost:27017/orbitalFederates';
 
-MongoClient.connect(url, async(function (err, db) {
+MongoClient.connect(MONGO_URL, async(function (err, db) {
     if (err) return console.error('Unable to connect to the mongoDB server. Error:', err);
     console.log('Connection established to', url);
     let resultsCollection = db.collection('results');
