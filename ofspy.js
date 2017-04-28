@@ -147,9 +147,9 @@ exports.run = async(function (db, config, seed = 0) {
 
                     return res;
                 }, {
-                    sim: SIM_INFO,
+                    simulation: SIM_INFO,
                     seed: seed,
-                    config: config,
+                    configuration: config,
                     results: {
                         endCash: []
                     }

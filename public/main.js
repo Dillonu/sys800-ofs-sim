@@ -21,7 +21,7 @@ function submit(url, msg, callback) {
 function submitSim() {
     submit('/api/simulate', {
         count: Number(document.getElementById('c').value),
-        config: {
+        configuration: {
             federateIds: [Number(document.getElementById('f1').value), Number(document.getElementById('f2').value)],
             turns: Number(document.getElementById('t').value),
             oAlg: document.getElementById('o').value,
@@ -43,7 +43,7 @@ function submitTestSim() {
             if (t < turns) {
                 submit('/api/simulate', {
                     count: count,
-                    config: {
+                    configuration: {
                         federateIds: [0, 0],
                         locations: [[3, 0], [2, 2]],
                         turns: t,
@@ -68,7 +68,7 @@ function queryStats() {
         max: document.getElementById('max').checked,
         avg: document.getElementById('avg').checked,
         stdDev: document.getElementById('stdDev').checked,
-        config: {
+        configuration: {
             federateIds: [Number(document.getElementById('f1').value), Number(document.getElementById('f2').value)],
             turns: Number(document.getElementById('t').value),
             oAlg: document.getElementById('o').value,

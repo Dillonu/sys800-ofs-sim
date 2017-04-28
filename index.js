@@ -22,18 +22,18 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
 
         // Handle simulation info:
         for (const field in ofspy.SIM_INFO) {
-            matchConfig[`sim.${field}`] = ofspy.SIM_INFO[field];
+            matchConfig[`simulation.${field}`] = ofspy.SIM_INFO[field];
         }
 
         // TODO: Handle subfields
         // TBD: Is it necessary to have default values? Shouldn't the version of the sim account for this?
         for (const field in body.config) {
-            matchConfig[`config.${field}`] = body.config[field];
+            matchConfig[`configuration.${field}`] = body.configuration[field];
         }
 
         // Set defaults if missing field:
         for (const field in ofspy.DEFAULT_CONFIG) {
-            if (matchConfig[`config.${field}`] == null) matchConfig[`config.${field}`] = ofspy.DEFAULT_CONFIG[field];
+            if (matchConfig[`configuration.${field}`] == null) matchConfig[`configuration.${field}`] = ofspy.DEFAULT_CONFIG[field];
         }
 
         return matchConfig;
@@ -52,7 +52,7 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
         for (let seed = 0; seed < req.body.count; seed += 1) {
             if (alreadyExecutedSeeds[seed]) continue; // If all done, skip
 
-            sims.push(ofspy.run(db, req.body.config, seed));
+            sims.push(ofspy.run(db, req.body.configuration, seed));
         }
 
         // Wait for results to complete before returning:
@@ -67,14 +67,14 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
     app.get('/api/wipe', async(function (req, res) {
         let resultsCollection = db.collection('results');
         resultsCollection.drop();
-        resultsCollection.createIndex({ "sim.name": 1 });
-        resultsCollection.createIndex({ "sim.version": 1 });
+        resultsCollection.createIndex({ "simulation.name": 1 });
+        resultsCollection.createIndex({ "simulation.version": 1 });
         resultsCollection.createIndex({ "seed": 1 });
-        resultsCollection.createIndex({ "config.federateIds": 1 });
-        resultsCollection.createIndex({ "config.locations": 1 });
-        resultsCollection.createIndex({ "config.oAlg": 1 });
-        resultsCollection.createIndex({ "config.fAlg": 1 });
-        resultsCollection.createIndex({ "config.turns": 1 });
+        resultsCollection.createIndex({ "configuration.federateIds": 1 });
+        resultsCollection.createIndex({ "configuration.locations": 1 });
+        resultsCollection.createIndex({ "configuration.oAlg": 1 });
+        resultsCollection.createIndex({ "configuration.fAlg": 1 });
+        resultsCollection.createIndex({ "configuration.turns": 1 });
         resultsCollection.createIndex({ "results.endCash": 1 });
 
         res.json("\"success\"");
@@ -113,7 +113,7 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
                     _id: false,
                     federate: {
                         $zip: {
-                            inputs: ["$config.federateIds", "$results.endCash"]
+                            inputs: ["$configuration.federateIds", "$results.endCash"]
                         }
                     }
                 })
