@@ -1,4 +1,18 @@
-function submit(url, msg, callback) {
+function disableButtons() {
+    // Disable all buttons:
+    document.querySelectorAll('input').forEach((el) => {
+        el.disabled = true;
+    });
+}
+
+function enableButtons() {
+    // Enable all buttons:
+    document.querySelectorAll('input').forEach((el) => {
+        el.disabled = false;
+    });
+}
+
+function submit(url, msg, callback, lockButtons = true) {
     let xhr = new XMLHttpRequest();
     xhr.open('POST', url, true);
     xhr.setRequestHeader('Content-Type', 'application/json');
@@ -8,19 +22,23 @@ function submit(url, msg, callback) {
         if (this.status === 200) {
             const data = JSON.parse(this.responseText);
 
-            document.getElementById('r').innerText = JSON.stringify(data, null, '\t');
+            if (lockButtons) enableButtons();
+            document.getElementById('r').innerText = 'Result:\n' + JSON.stringify(data, null, '\t');
             if (callback) callback();
             // we get the returned data
         }
 
         // end of state change: it can be after some time (async)
     };
+    if (lockButtons) disableButtons();
+    document.getElementById('r').innerText = 'Submitted request:\n' + JSON.stringify(msg, null, '\t');
     xhr.send(JSON.stringify(msg));
 }
 
 function submitSim() {
     submit('/api/simulate', {
         count: Number(document.getElementById('c').value),
+        background: document.getElementById('bck').checked,
         configuration: {
             federateIds: [Number(document.getElementById('f1').value), Number(document.getElementById('f2').value)],
             turns: Number(document.getElementById('t').value),
@@ -30,7 +48,7 @@ function submitSim() {
     });
 }
 
-function submitTestSim() {
+/*function submitTestSim() {
     const count = Number(document.getElementById('c').value);
     const turns = Number(document.getElementById('t').value);
     const oAlg = document.getElementById('o').value;
@@ -60,7 +78,7 @@ function submitTestSim() {
     }
 
     upper();
-}
+}*/
 
 function queryStats() {
     submit('/api/statistics', {
@@ -90,13 +108,14 @@ function runAllSims(ids) {
             if (j < ids) {
                 submit('/api/simulate', {
                     count: count,
+                    background: true,
                     config: {
                         federateIds: [i, j],
                         turns: turns,
                         oAlg: oAlg,
                         fAlg: fAlg
                     }
-                }, _lower);
+                }, _lower, false);
 
                 j += 1;
             } else {
@@ -123,15 +142,9 @@ function runAllSims(ids) {
         _upper();
     }
 
-    // Disable all buttons:
-    document.querySelectorAll('input').forEach((el) => {
-        el.disabled = true;
-    });
+    disableButtons();
     // Run query:
     upper(function () {
-        // Enable all buttons:
-        document.querySelectorAll('input').forEach((el) => {
-            el.disabled = false;
-        });
+        enableButtons();
     });
 }

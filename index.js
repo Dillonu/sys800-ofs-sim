@@ -45,14 +45,14 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
         const matchConfig = generateMatchConfig(req.body);
 
         // Find seeds already executed:
-        let alreadyExecutedSeeds = new Set(await(resultsCollection.find(matchConfig).project({ _id: 0, seed: 1 }).toArray()));
+        let alreadyExecutedSeeds = new Set(await(resultsCollection.find(matchConfig).project({ _id: 0, seed: 1 }).toArray()).map((obj) => { return obj.seed; }));
 
         // Start sims:
         let sims = [];
         for (let seed = 0; seed < req.body.count; seed += 1) {
-            if (alreadyExecutedSeeds[seed]) continue; // If all done, skip
+            if (alreadyExecutedSeeds.has(seed)) continue; // If all done, skip
 
-            sims.push(ofspy.run(db, req.body.configuration, seed));
+            sims.push(ofspy.run(db, req.body.configuration, seed, req.body.background));
         }
 
         // Wait for results to complete before returning:
@@ -83,7 +83,8 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
     app.post('/api/statistics', async(function (req, res) {
         const matchConfig = generateMatchConfig(req.body);
         let groupSettings = {
-            _id: { federateId: "$federateId", federateIndex: "$federateIndex" } // Aggregate federates
+            _id: { federateId: "$federateId", federateIndex: "$federateIndex" }, // Aggregate federates
+            count: { $sum: 1 }
         };
 
         if (req.body.min == null && req.body.max == null && req.body.avg == null && req.body.stdDev == null) {

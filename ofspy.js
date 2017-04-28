@@ -38,10 +38,13 @@ let designsCache = {};
 const PROCESS_COUNT_MAX = 20;
 let curProcessCount = 0;
 let waitingProcess = [];
+let waitingBackgroundProcess = [];
 
-function processRun(callback) {
+function processRun(callback, isBackground) {
     // Queue process if there is currently too many running:
-    if (curProcessCount >= PROCESS_COUNT_MAX) return waitingProcess.push(callback);
+    if (curProcessCount >= PROCESS_COUNT_MAX) {
+        return (isBackground ? waitingBackgroundProcess : waitingProcess).push(callback);
+    }
 
     curProcessCount += 1;
     // Run process:
@@ -56,9 +59,14 @@ function processClose() {
         curProcessCount += 1;
         (waitingProcess.shift())();
     }
+    // Run background processes that are in the queue:
+    while (curProcessCount < PROCESS_COUNT_MAX && waitingBackgroundProcess.length > 0) {
+        curProcessCount += 1;
+        (waitingBackgroundProcess.shift())();
+    }
 }
 
-exports.run = async(function (db, config, seed = 0) {
+exports.run = async(function (db, config, seed = 0, isBackground = false) {
     let designCollection = db.collection('designs');
     let federateCollection = db.collection('federates');
 
@@ -170,6 +178,6 @@ exports.run = async(function (db, config, seed = 0) {
                 // Let the process manager know this process is done:
                 processClose();
             });
-        });
+        }, isBackground);
     });
 });
