@@ -1,0 +1,3 @@
+[submodule "ofspy"]
+	path = ofspy
+	url = https://github.com/ptgrogan/ofspy.git
