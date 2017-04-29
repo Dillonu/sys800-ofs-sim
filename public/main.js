@@ -82,15 +82,19 @@ function submitSim() {
 
 function queryStats() {
     submit('/api/statistics', {
-        min: document.getElementById('min').checked,
-        max: document.getElementById('max').checked,
-        avg: document.getElementById('avg').checked,
-        stdDev: document.getElementById('stdDev').checked,
+        count: Number(document.getElementById('c').value),
         configuration: {
             federateIds: [Number(document.getElementById('f1').value), Number(document.getElementById('f2').value)],
             turns: Number(document.getElementById('t').value),
             oAlg: document.getElementById('o').value,
             fAlg: document.getElementById('f').value
+        },
+        field: 'endCash',
+        statistics: {
+            min: document.getElementById('min').checked,
+            max: document.getElementById('max').checked,
+            avg: document.getElementById('avg').checked,
+            stdDev: document.getElementById('stdDev').checked
         }
     });
 }

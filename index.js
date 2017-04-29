@@ -82,39 +82,42 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
 
     app.post('/api/statistics', async(function (req, res) {
         const matchConfig = generateMatchConfig(req.body);
+        const field = req.body.field;
         let groupSettings = {
             _id: { federateId: "$federateId", federateIndex: "$federateIndex" }, // Aggregate federates
             count: { $sum: 1 }
         };
+        let stats = req.body.statistics;
 
-        if (req.body.min == null && req.body.max == null && req.body.avg == null && req.body.stdDev == null) {
+        if (stats.min == null && stats.max == null && stats.avg == null && stats.stdDev == null) {
             // If no settings are specified, default to show all:
-            req.body.min = true;
-            req.body.max = true;
-            req.body.avg = true;
-            req.body.stdDev = true;
-        } else if (req.body.min == false || req.body.max == false || req.body.avg == false || req.body.stdDev == false) {
+            stats.min = true;
+            stats.max = true;
+            stats.avg = true;
+            stats.stdDev = true;
+        } else if (stats.min == false || stats.max == false || stats.avg == false || stats.stdDev == false) {
             // If one settings is false, default for all is true unless specified false:
-            req.body.min = (req.body.min != false);
-            req.body.max = (req.body.max != false);
-            req.body.avg = (req.body.avg != false);
-            req.body.stdDev = (req.body.stdDev != false);
+            stats.min = (stats.min != false);
+            stats.max = (stats.max != false);
+            stats.avg = (stats.avg != false);
+            stats.stdDev = (stats.stdDev != false);
         }
 
         // Based on settings, only return certain fields:
-        if (req.body.min) groupSettings.endCashMin = { $min: "$endCash" };
-        if (req.body.max) groupSettings.endCashMax = { $max: "$endCash" };
-        if (req.body.avg) groupSettings.endCashAvg = { $avg: "$endCash" };
-        if (req.body.stdDev) groupSettings.endCashStdDev = { $stdDevPop: "$endCash" };
+        if (stats.min) groupSettings.min = { $min: `$${field}` };
+        if (stats.max) groupSettings.max = { $max: `$${field}` };
+        if (stats.avg) groupSettings.avg = { $avg: `$${field}` };
+        if (stats.stdDev) groupSettings.stdDev = { $stdDevPop: `$${field}` };
 
         const results = await(
+            // TODO: Make it independent of the data structure of configuration and results.
             resultsCollection.aggregate()
                 .match(matchConfig)
                 .project({
                     _id: false,
                     federate: {
                         $zip: {
-                            inputs: ["$configuration.federateIds", "$results.endCash"]
+                            inputs: ["$configuration.federateIds", `$results.${field}`]
                         }
                     }
                 })
@@ -125,7 +128,7 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
                 .project({
                     federateId: { $arrayElemAt: ["$federate", 0] },
                     federateIndex: true,
-                    endCash: { $arrayElemAt: ["$federate", 1] }
+                    [field]: { $arrayElemAt: ["$federate", 1] }
                 })
                 .group(groupSettings)
                 .sort({
