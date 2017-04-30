@@ -48,7 +48,7 @@ function submitSim() {
     });
 }
 
-/*function submitTestSim() {
+function submitTestSim() {
     const count = Number(document.getElementById('c').value);
     const turns = Number(document.getElementById('t').value);
     const oAlg = document.getElementById('o').value;
@@ -62,8 +62,8 @@ function submitSim() {
                 submit('/api/simulate', {
                     count: count,
                     configuration: {
-                        federateIds: [0, 0],
-                        locations: [[3, 0], [2, 2]],
+                        federateIds: [3, 3, 3],
+                        locations: [[1, 3], [3, 5], [4, 6]],
                         turns: t,
                         oAlg: oAlg,
                         fAlg: fAlg
@@ -78,7 +78,31 @@ function submitSim() {
     }
 
     upper();
-}*/
+}
+
+function queryTestStats() {
+    const turns = Number(document.getElementById('t').value);
+    const oAlg = document.getElementById('o').value;
+    const fAlg = document.getElementById('f').value;
+
+    submit('/api/statistics', {
+        count: Number(document.getElementById('c').value),
+        configuration: {
+            federateIds: [3, 3, 3],
+            locations: [[1, 3], [3, 5], [4, 6]],
+            turns: turns,
+            oAlg: oAlg,
+            fAlg: fAlg
+        },
+        field: 'endCash',
+        statistics: {
+            min: document.getElementById('min').checked,
+            max: document.getElementById('max').checked,
+            avg: document.getElementById('avg').checked,
+            stdDev: document.getElementById('stdDev').checked
+        }
+    });
+}
 
 function queryStats() {
     submit('/api/statistics', {

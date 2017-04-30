@@ -22,9 +22,9 @@ const BUILD = {
         return `${playerId + 1}.GroundSta@SUR${basePos},${ground.components.join(',')}`;
     },
     SAT: function (sat, playerId, satPos) {
-        if (sat.components <= 2) {
+        if (sat.components.length <= 2) {
             return `${playerId + 1}.SmallSat@MEO${satPos},${sat.components.join(',')}`;
-        } else if (sat.components <= 4) {
+        } else if (sat.components.length <= 4) {
             return `${playerId + 1}.MediumSat@MEO${satPos},${sat.components.join(',')}`;
         } else {
             return `${playerId + 1}.LargeSat@MEO${satPos},${sat.components.join(',')}`;
@@ -65,6 +65,32 @@ function processClose() {
         (waitingBackgroundProcess.shift())();
     }
 }
+
+
+
+exports.generateMatchConfig = (body) => {
+    let matchConfig = {};
+
+    if (body.count != null) matchConfig.seed = { $gte: 0, $lt: body.count };
+
+    // Handle simulation info:
+    for (const field in SIM_INFO) {
+        matchConfig[`simulation.${field}`] = SIM_INFO[field];
+    }
+
+    // TODO: Handle subfields
+    // TBD: Is it necessary to have default values? Shouldn't the version of the sim account for this?
+    for (const field in body.configuration) {
+        matchConfig[`configuration.${field}`] = body.configuration[field];
+    }
+
+    // Set defaults if missing field:
+    for (const field in DEFAULT_CONFIG) {
+        if (matchConfig[`configuration.${field}`] == null) matchConfig[`configuration.${field}`] = DEFAULT_CONFIG[field];
+    }
+
+    return matchConfig;
+};
 
 exports.run = async(function (db, config, seed = 0, isBackground = false) {
     let designCollection = db.collection('designs');

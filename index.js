@@ -15,34 +15,10 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
     app.use(bodyParser.json());
     app.use(express.static('public'));
 
-    function generateMatchConfig(body) {
-        let matchConfig = {};
-
-        if (body.count != null) matchConfig.seed = { $gte: 0, $lt: body.count };
-
-        // Handle simulation info:
-        for (const field in ofspy.SIM_INFO) {
-            matchConfig[`simulation.${field}`] = ofspy.SIM_INFO[field];
-        }
-
-        // TODO: Handle subfields
-        // TBD: Is it necessary to have default values? Shouldn't the version of the sim account for this?
-        for (const field in body.config) {
-            matchConfig[`configuration.${field}`] = body.configuration[field];
-        }
-
-        // Set defaults if missing field:
-        for (const field in ofspy.DEFAULT_CONFIG) {
-            if (matchConfig[`configuration.${field}`] == null) matchConfig[`configuration.${field}`] = ofspy.DEFAULT_CONFIG[field];
-        }
-
-        return matchConfig;
-    }
-
     app.post('/api/simulate', async(function (req, res) {
         req.body.count = req.body.count || 100;
         // TODO: Determine simulator to load.
-        const matchConfig = generateMatchConfig(req.body);
+        const matchConfig = ofspy.generateMatchConfig(req.body);
 
         // Find seeds already executed:
         let alreadyExecutedSeeds = new Set(await(resultsCollection.find(matchConfig).project({ _id: 0, seed: 1 }).toArray()).map((obj) => { return obj.seed; }));
@@ -81,7 +57,7 @@ MongoClient.connect(MONGO_URL, async(function (err, db) {
     }));
 
     app.post('/api/statistics', async(function (req, res) {
-        const matchConfig = generateMatchConfig(req.body);
+        const matchConfig = ofspy.generateMatchConfig(req.body);
         const field = req.body.field;
         let groupSettings = {
             _id: { federateId: "$federateId", federateIndex: "$federateIndex" }, // Aggregate federates
